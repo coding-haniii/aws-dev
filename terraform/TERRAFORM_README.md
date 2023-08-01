@@ -26,7 +26,7 @@ $terraform -version
 -------------------------------------------------------
 ### AWS Configure with AWS accesskey
 ```
-$aws configure                     (*To do this step, You shuld create your accesskey on your AWS console)
+$aws configure                   (*To do this step, You shuld create your accesskey on your AWS console)
 AWS Access Key ID [None]: 
 AWS Secret Access Key [None]: 
 Default region name [None]: 
