@@ -14,6 +14,7 @@ $sudo ./aws/install
 $aws --version
 -------------------------------------------------------
 ### Terraform intall
+*
 $sudo yum install -y yum-utils shadow-utils
 $sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
 $sudo yum -y install terraform
@@ -31,6 +32,7 @@ $aws configure list
 $aws sts get-caller-identity
 -------------------------------------------------------
 ### Terraform command
+*
 $terraform init      (Confirm current env)
 $terraform plan      (Read .tf files && Compare and show summary, err)
 $terraform apply     (Exec .tf files && Create resources)
