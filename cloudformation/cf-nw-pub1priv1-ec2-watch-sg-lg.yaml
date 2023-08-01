@@ -1,0 +1,1171 @@
+# cf-nw-001-pub1priv1-ec2-eip-watch-sg-lg
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provisions a simple cluster with a web and database server
+Parameters:
+  KeyPairName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair
+  InstanceType:
+    Type: String
+    Description: Instance type to provision
+    Default: t2.micro
+  ImageId:
+    Type: String
+    Description: Image to use when provisioning instances
+    Default: #ami-0e05f79e46019bfac #ami-03f54df9441e9b380
+  VolumeSize:
+    Type: Number
+    Description: Size of the volume in GB
+    Default: 250
+  RootDevice:
+    Type: String
+    Description: Name of the root device on provisioned instances
+    Default: xvda
+  RootFsType:
+    Type: String
+    Description: File system type for root device
+    Default: xfs
+  PrivateSubnetId:
+    Type: String
+    Description: Private Subnet Id
+    Default: subnet-039d05d607598940e
+  PublicSubnetId:
+    Type: String
+    Description: Public Subnet Id
+    Default: subnet-0f9bcd0dfa6cc89b8
+  VpcId:
+    Type: String
+    Description: Vpc Id
+    Default: vpc-0c4a5d2f40f5cebbd
+  AllocateEIP:
+    Description: Select "yes" if you want to assign EIP to an instance
+    Type: String
+    AllowedValues:
+      - 'yes'
+      - 'no'
+Conditions:
+  UseAllocateEIP: !Equals 
+    - !Ref AllocateEIP
+    - 'yes'
+Resources:
+  PublicSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Description: Public Security Group
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Web Server Security Group
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        - CidrIp: 0.0.0.0/24
+          IpProtocol: -1
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 587
+          ToPort: 587
+        - CidrIp: 0.0.0.0/24
+          IpProtocol: -1
+      Tags:
+        - Key: Name
+          Value: Public Subnet
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 1780f271-21df-41d0-8ec3-97c4b6fcefd6
+  PrivateSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Description: Private Security Group
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Private Subnet Security Group
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/24
+          IpProtocol: -1
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/24
+          IpProtocol: -1
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+      Tags:
+        - Key: Name
+          Value: Private Subnet
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: af0d90fa-4478-4fdb-8de4-42c542933740
+  BackupS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+      Tags:
+        - Key: Name
+          Value: Backup Bucket
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: eb516d84-80f1-44a8-9924-342ed19d01d6
+  AdminGroup:
+    Type: 'AWS::IAM::Group'
+    Properties:
+      Policies:
+        - PolicyName: AdminPolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                  - 's3:ListBucketByTags'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:ListBucketVersions'
+                Resource: !Sub '${BackupS3Bucket.Arn}'
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:DeleteObject'
+                  - 's3:GetObject'
+                Resource: !Sub '${BackupS3Bucket.Arn}/*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: d38f518d-54d0-43ca-b926-a865f57bf938
+  InstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      ManagedPolicyArns:
+        - 'arn:aws-us-gov:iam::aws:policy/CloudWatchAgentServerPolicy'
+        - 'arn:aws-us-gov:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+        - 'arn:aws-us-gov:iam::aws:policy/AmazonSSMReadOnlyAccess'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: ac79ecfa-23f8-4b03-b114-b3f36d6eedf4
+  InstanceRolePolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: InstanceRolePolicy
+      Roles:
+        - !Ref InstanceRole
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:ListBucket'
+              - 's3:ListBucketByTags'
+              - 's3:ListBucketMultipartUploads'
+              - 's3:ListBucketVersions'
+            Resource: !Sub '${BackupS3Bucket.Arn}'
+          - Effect: Allow
+            Action:
+              - 's3:PutObject'
+              - 's3:DeleteObject'
+              - 's3:GetObject'
+            Resource: !Sub '${BackupS3Bucket.Arn}/*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 9eac20a8-5d4c-4cea-9e9e-706f1d350e70
+  InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: aa3c4055-64d5-4277-bf03-70b5aa3c05e5
+  BootLog:
+    Type: 'AWS::Logs::LogGroup'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: bef7ac7f-041c-4a22-a310-4b87bea98a7f
+  KernelLog:
+    Type: 'AWS::Logs::LogGroup'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 85ad8731-77bb-476d-8ca0-9ff13ef0e255
+  DatabaseServer:
+    Type: 'AWS::EC2::Instance'
+    Metadata:
+      'AWS::CloudFormation::Init':
+        config:
+          files:
+            /etc/profile.d/cloudformation-init.sh:
+              content: !Sub |
+                export BACKUP_S3_BUCKET="${BackupS3Bucket}"
+            /etc/amazon/amazon-cloudwatch-agent.json:
+              content: !Sub |
+                {
+                  "metrics": {
+                    "append_dimensions": {
+                      "AutoScalingGroupName": "${!aws:AutoScalingGroupName}",
+                      "ImageId": "${!aws:ImageId}",
+                      "InstanceId": "${!aws:InstanceId}",
+                      "InstanceType": "${!aws:InstanceType}"
+                    },
+                    "metrics_collected": {
+                      "cpu": {
+                        "measurement": [
+                          "cpu_usage_idle",
+                          "cpu_usage_iowait",
+                          "cpu_usage_user",
+                          "cpu_usage_system"
+                        ],
+                        "metrics_collection_interval": 30,
+                        "totalcpu": false
+                      },
+                      "disk": {
+                        "measurement": [
+                          "used_percent",
+                          "inodes_free"
+                        ],
+                        "metrics_collection_interval": 30,
+                        "resources": [
+                          "*"
+                        ]
+                      },
+                      "diskio": {
+                        "measurement": [
+                          "io_time"
+                        ],
+                        "metrics_collection_interval": 30,
+                        "resources": [
+                          "*"
+                        ]
+                      },
+                      "mem": {
+                        "measurement": [
+                          "mem_used_percent"
+                        ],
+                        "metrics_collection_interval": 30
+                      },
+                      "statsd": {
+                        "metrics_aggregation_interval": 30,
+                        "metrics_collection_interval": 10,
+                        "service_address": ":8125"
+                      },
+                      "swap": {
+                        "measurement": [
+                          "swap_used_percent"
+                        ],
+                        "metrics_collection_interval": 30
+                      }
+                    }
+                  },
+                  "logs": {
+                    "logs_collected": {
+                      "files": {
+                        "collect_list": [
+                          {
+                            "log_group_name": "${BootLog}",
+                            "file_path": "/var/log/boot.log"
+                          },
+                          {
+                            "log_group_name": "${KernelLog}",
+                            "file_path": "/var/log/messages"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+      'AWS::CloudFormation::Designer':
+        id: c46e9d28-e9bc-4640-91d8-4450f395084e
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPairName
+      SecurityGroupIds:
+        - !Ref PrivateSecurityGroup
+      SubnetId: !Ref PrivateSubnetId
+      BlockDeviceMappings:
+        - DeviceName: !Sub '/dev/${RootDevice}'
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp2
+      IamInstanceProfile: !Ref InstanceProfile
+      Tags:
+        - Key: Name
+          Value:  Database Server
+      UserData: !Base64 
+        'Fn::Sub': >
+          #!/bin/bash -xe
+
+
+          # cloudformation initialize
+
+          /opt/aws/bin/cfn-init -v -s ${AWS::StackName} --region ${AWS::Region}
+          -r DatabaseServer
+
+
+          # download and install cloudwatch agent
+
+          wget
+          https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+
+          yum -y install amazon-cloudwatch-agent.rpm
+
+          mv /etc/amazon/amazon-cloudwatch-agent.json
+          /etc/amazon/amazon-cloudwatch-agent/amazon-cloudwatch-agent.json
+
+          sudo systemctl enable amazon-cloudwatch-agent
+
+          sudo systemctl start amazon-cloudwatch-agent
+  WebServer:
+    Type: 'AWS::EC2::Instance'
+    Metadata:
+      'AWS::CloudFormation::Init':
+        config:
+          files:
+            /etc/profile.d/cloudformation-init.sh:
+              content: !Sub |
+                export BACKUP_S3_BUCKET="${BackupS3Bucket}"
+                export DATABASE_SERVER="${DatabaseServer.PrivateIp}"
+            /etc/amazon/amazon-cloudwatch-agent.json:
+              content: !Sub |
+                {
+                  "metrics": {
+                    "append_dimensions": {
+                      "AutoScalingGroupName": "${!aws:AutoScalingGroupName}",
+                      "ImageId": "${!aws:ImageId}",
+                      "InstanceId": "${!aws:InstanceId}",
+                      "InstanceType": "${!aws:InstanceType}"
+                    },
+                    "metrics_collected": {
+                      "cpu": {
+                        "measurement": [
+                          "cpu_usage_idle",
+                          "cpu_usage_iowait",
+                          "cpu_usage_user",
+                          "cpu_usage_system"
+                        ],
+                        "metrics_collection_interval": 30,
+                        "totalcpu": false
+                      },
+                      "disk": {
+                        "measurement": [
+                          "used_percent",
+                          "inodes_free"
+                        ],
+                        "metrics_collection_interval": 30,
+                        "resources": [
+                          "*"
+                        ]
+                      },
+                      "diskio": {
+                        "measurement": [
+                          "io_time"
+                        ],
+                        "metrics_collection_interval": 30,
+                        "resources": [
+                          "*"
+                        ]
+                      },
+                      "mem": {
+                        "measurement": [
+                          "mem_used_percent"
+                        ],
+                        "metrics_collection_interval": 30
+                      },
+                      "statsd": {
+                        "metrics_aggregation_interval": 30,
+                        "metrics_collection_interval": 10,
+                        "service_address": ":8125"
+                      },
+                      "swap": {
+                        "measurement": [
+                          "swap_used_percent"
+                        ],
+                        "metrics_collection_interval": 30
+                      }
+                    }
+                  },
+                  "logs": {
+                    "logs_collected": {
+                      "files": {
+                        "collect_list": [
+                          {
+                            "log_group_name": "${BootLog}",
+                            "file_path": "/var/log/boot.log"
+                          },
+                          {
+                            "log_group_name": "${KernelLog}",
+                            "file_path": "/var/log/messages"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+      'AWS::CloudFormation::Designer':
+        id: d2ced057-1e70-48ec-a0d7-a4d783188beb
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPairName
+      SecurityGroupIds:
+        - !Ref PublicSecurityGroup
+      SubnetId: !Ref PublicSubnetId
+      BlockDeviceMappings:
+        - DeviceName: !Sub '/dev/${RootDevice}'
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp2
+      IamInstanceProfile: !Ref InstanceProfile
+      Tags:
+        - Key: Name
+          Value:  Web Server
+      UserData: !Base64 
+        'Fn::Sub': >
+          #!/bin/bash -xe
+
+
+          # cloudformation initialize
+
+          /opt/aws/bin/cfn-init -v -s ${AWS::StackName} --region ${AWS::Region}
+          -r WebServer
+
+
+          # download and install cloudwatch agent
+
+          wget
+          https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+
+          yum -y install amazon-cloudwatch-agent.rpm
+
+          mv /etc/amazon/amazon-cloudwatch-agent.json
+          /etc/amazon/amazon-cloudwatch-agent/amazon-cloudwatch-agent.json
+
+          sudo systemctl enable amazon-cloudwatch-agent
+
+          sudo systemctl start amazon-cloudwatch-agent
+  AlarmTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: Alarms
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 0bfddc65-e654-4885-9d8a-bd2d9a82841c
+  DatabaseCPUAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Database Server CPU Usage High
+      AlarmActions:
+        - !Ref AlarmTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 89
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref DatabaseServer
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 3dfc089a-eca9-424d-89c8-df507b40ae9c
+  DatabaseDiskAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Database Server Disk Usage High
+      AlarmActions:
+        - !Ref AlarmTopic
+      MetricName: disk_used_percent
+      Namespace: CWAgent
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 89
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref DatabaseServer
+        - Name: ImageId
+          Value: !Ref ImageId
+        - Name: InstanceType
+          Value: !Ref InstanceType
+        - Name: path
+          Value: /
+        - Name: device
+          Value: !Sub '${RootDevice}1'
+        - Name: fstype
+          Value: !Ref RootFsType
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 46293c04-ae2a-48cd-992c-bc8edf07486d
+  WebCPUAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Database Server CPU Usage High
+      AlarmActions:
+        - !Ref AlarmTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 89
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref WebServer
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 206ea9bb-ac72-4f42-9275-8bb16e646057
+  WebDiskAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Web Server Disk Usage High
+      AlarmActions:
+        - !Ref AlarmTopic
+      MetricName: disk_used_percent
+      Namespace: CWAgent
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 89
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref WebServer
+        - Name: ImageId
+          Value: !Ref ImageId
+        - Name: InstanceType
+          Value: !Ref InstanceType
+        - Name: path
+          Value: /
+        - Name: device
+          Value: !Sub '${RootDevice}1'
+        - Name: fstype
+          Value: !Ref RootFsType
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c0e87aed-f6fe-40ea-8fa7-fb70ebb84b36
+  LambdaBackupRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: NFormLambdasBackupRolePolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:CreateTags'
+                  - 'ec2:CreateSnapshot'
+                  - 'ec2:DeleteSnapshot'
+                  - 'ec2:Describe*'
+                  - 'ec2:ModifySnapshotAttribute'
+                  - 'ec2:ResetSnapshotAttribute'
+                  - 'xray:PutTraceSegments'
+                  - 'xray:PutTelemetryRecords'
+                  - 'xray:GetSamplingRules'
+                  - 'xray:GetSamplingTargets'
+                  - 'xray:GetSamplingStatisticSummaries'
+                  - 'logs:*'
+                Resource: '*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b821f2b5-e0a0-4b9f-9dbb-3ea999fc851c
+  CreateBackupLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: ebs-snapshots-create
+      Description: Create EBS Snapshots
+      Handler: index.handler
+      Role: !GetAtt 
+        - LambdaBackupRole
+        - Arn
+      Environment:
+        Variables:
+          REGIONS: !Ref 'AWS::Region'
+      Runtime: python3.9
+      Timeout: 90
+      TracingConfig:
+        Mode: Active
+      Code:
+        ZipFile: |
+          import os
+          from datetime import datetime, timedelta
+          import boto3
+
+          def handler(event, context):
+
+            ec2_client = boto3.client("ec2")
+            env_regions = os.getenv("REGIONS", None)
+            clientTag = os.getenv("CLIENT_BACKUP_TAG")
+            projectTag = os.getenv("PROJECT_BACKUP_TAG")
+            today = datetime.today()
+            total_created = 0
+
+            if env_regions:
+              regions = ec2_client.describe_regions(RegionNames = env_regions.split(","))
+            else:
+              return total_created
+
+            # loop through all of our regions
+            for region in regions.get("Regions", []):
+              regionName = region["RegionName"]
+              print("Checking for volumes in region %s" % (regionName))
+              ec2_client = boto3.client("ec2", region_name = region["RegionName"])
+
+              # query for volumes with matching tags that are in use
+              result = ec2_client.describe_volumes(Filters = [
+                {"Name": "status", "Values": ["in-use"]}
+              ])
+
+              if not result:
+                print("No matching EBS volumes with tag 'Client' = '%s' and tag 'Project' = '%s' in region %s" % (clientTag, projectTag, regionName))
+                return total_created
+
+              for volume in result["Volumes"]:
+                volume_name = volume["VolumeId"]
+                volume_description = "Created by ebs-snapshots-create"
+
+                # check the volume for matching tags
+                if "Tags" in volume:
+                  for tag in volume["Tags"]:
+                    if tag["Key"] == "Name":
+                      volume_name = tag["Value"]
+                    elif tag["Key"] == "Description":
+                      volume_description = tag["Value"]
+
+                # daily
+                print("Creating snapshot for EBS volume %s" % (volume["VolumeId"]))
+                result = ec2_client.create_snapshot(
+                  VolumeId = volume["VolumeId"],
+                  Description = volume_description
+                )
+                ec2_resource = boto3.resource("ec2", region_name = region["RegionName"])
+                snapshot_resource = ec2_resource.Snapshot(result["SnapshotId"])
+                snapshot_resource.create_tags(Tags = [
+                  {"Key": "Name", "Value": volume_name},
+                  {"Key": "Description", "Value": volume_description},
+                  {"Key": "Interval", "Value": "Daily"}
+                ])
+                total_created += 1
+
+                # quarterly
+                if today.day == 1 and today.month % 4 == 0:
+                  print("Creating quarterly snapshot for EBS volume %s" % (volume["VolumeId"]))
+                  result = ec2_client.create_snapshot(
+                  VolumeId = volume["VolumeId"],
+                  Description = volume_description
+                  )
+                  ec2_resource = boto3.resource("ec2", region_name = region["RegionName"])
+                  snapshot_resource = ec2_resource.Snapshot(result["SnapshotId"])
+                  snapshot_resource.create_tags(Tags = [
+                    {"Key": "Name", "Value": volume_name},
+                    {"Key": "Description", "Value": volume_description},
+                    {"Key": "Interval", "Value": "Quarterly"}
+                  ])
+                  total_created += 1
+
+                # annual
+                if today.day == 31 and today.month == 12:
+                  print("Creating annual snapshot for EBS volume %s" % (volume["VolumeId"]))
+                  result = ec2_client.create_snapshot(
+                  VolumeId = volume["VolumeId"],
+                  Description = volume_description
+                  )
+                  ec2_resource = boto3.resource("ec2", region_name = region["RegionName"])
+                  snapshot_resource = ec2_resource.Snapshot(result["SnapshotId"])
+                  snapshot_resource.create_tags(Tags = [
+                    {"Key": "Name", "Value": volume_name},
+                    {"Key": "Description", "Value": volume_description},
+                    {"Key": "Interval", "Value": "Annual"},
+                  ])
+                  total_created += 1
+
+            return total_created
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: cba89d25-4a23-4e98-8833-b496f2358c5a
+  DeleteBackupLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: ebs-snapshots-delete
+      Description: Delete Old EBS Snapshots
+      Handler: index.handler
+      Role: !GetAtt 
+        - LambdaBackupRole
+        - Arn
+      Environment:
+        Variables:
+          REGIONS: !Ref 'AWS::Region'
+      Runtime: python3.9
+      Timeout: 90
+      TracingConfig:
+        Mode: Active
+      Code:
+        ZipFile: |
+          import os
+          from datetime import datetime, timedelta
+          from dateutil import relativedelta
+          import boto3
+
+          def handler(event, context):
+
+            ec2_client = boto3.client("ec2")
+            date_format = "%Y-%m-%dT%H:%M:%S.%fZ"
+            daily_cutoff = (datetime.utcnow() - timedelta(days = 7)).strftime(date_format)
+            env_regions = os.getenv("REGIONS", None)
+            today = datetime.today()
+            total_deleted = 0
+
+            if env_regions:
+              regions = ec2_client.describe_regions(RegionNames = env_regions.split(","))
+            else:
+              return total_created
+
+            for region in regions.get("Regions", []):
+              regionName = region["RegionName"]
+              print("Checking for snapshots in region %s" % (regionName))
+
+              # query for Daily snapshots with matching tags
+              result = ec2_client.describe_snapshots(Filters = [
+                {"Name": "tag:Interval", "Values": ["Daily"]}
+              ])
+
+              if not result:
+                print("No matching Daily snapshots with tag 'Client' = '%s' and tag 'Project' = '%s' in region %s" % (clientTag, projectTag, regionName))
+                return total_deleted
+
+              for snapshot in result["Snapshots"]:
+                snapshot_time = snapshot["StartTime"].strftime(date_format)
+                snapshot_id = snapshot["SnapshotId"]
+
+                if daily_cutoff > snapshot_time:
+                  snapshot_name = ""
+                  if "Tags" in snapshot:
+                    for tag in snapshot["Tags"]:
+                        if tag["Key"] == "Name":
+                            snapshot_name = tag["Value"]
+
+                  print("Deleting Daily EBS snapshot ID = %s, Name = %s" % (snapshot_id, snapshot_name))
+                  ec2_client.delete_snapshot(SnapshotId = snapshot_id)
+                  total_deleted += 1
+
+              # query for quarterly snapshots with matching tags
+              if today.day == 1 and today.month % 4 == 1:
+                quarterly_cutoff_raw = datetime.utcnow() - relativedelta.relativedelta(months = 15) # keep five quarters
+                quarterly_cutoff = quarterly_cutoff_raw.strftime(date_format)
+                result = ec2_client.describe_snapshots(Filters = [
+                  {"Name": "tag:Interval", "Values": ["Quarterly"]}
+                ])
+
+                if not result:
+                  print("No matching Quarterly snapshots with tag 'Client' = '%s' and tag 'Project' = '%s' in region %s" % (clientTag, projectTag, regionName))
+                  return total_deleted
+
+                for snapshot in result["Snapshots"]:
+                  snapshot_time = snapshot["StartTime"].strftime(date_format)
+                  snapshot_id = snapshot["SnapshotId"]
+
+                  if quarterly_cutoff > snapshot_time:
+                    snapshot_name = ""
+                    if "Tags" in snapshot:
+                      for tag in snapshot["Tags"]:
+                          if tag["Key"] == "Name":
+                              snapshot_name = tag["Value"]
+
+                    print("Deleting Quarterly EBS snapshot ID = %s, Name = %s" % (snapshot_id, snapshot_name))
+                    ec2_client.delete_snapshot(SnapshotId = snapshot_id)
+                    total_deleted += 1
+
+            return total_deleted
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 19c696d9-34a8-4278-87ec-5595154d6447
+  PerformBackupRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: Triggers our backup lambda script
+      ScheduleExpression: cron(30 4 * * ? *)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt 
+            - CreateBackupLambda
+            - Arn
+          Id: BackupRule
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 821664c7-e81f-4054-864c-71ab58852999
+  DeleteBackupRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: Triggers our backup delete lambda script
+      ScheduleExpression: cron(45 4 * * ? *)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt 
+            - DeleteBackupLambda
+            - Arn
+          Id: BackupRule
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7924aaa3-639f-4190-ab52-bd56ac19c29b
+  PermissionCreate:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt 
+        - CreateBackupLambda
+        - Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt 
+        - PerformBackupRule
+        - Arn
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 03ff17fa-b861-4c22-8830-d9f74cec5adc
+  PermissionDelete:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt 
+        - DeleteBackupLambda
+        - Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt 
+        - DeleteBackupRule
+        - Arn
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: a5ea54a4-250b-46af-a03c-7a983168a943
+  EIP01:
+    Type: 'AWS::EC2::EIP'
+    Condition: UseAllocateEIP
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 0e95ba48-30cc-4aa7-ac0d-e4490add9806
+  EIPAssociation01:
+    Type: 'AWS::EC2::EIPAssociation'
+    Condition: UseAllocateEIP
+    Properties:
+      AllocationId: !GetAtt 
+        - EIP01
+        - AllocationId
+      InstanceId: !Ref DatabaseServer
+    DependsOn:
+      - EIP01
+      - DatabaseServer
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: f1e3df2e-594f-40b9-9f28-9b66581222b0
+  EIP02:
+    Type: 'AWS::EC2::EIP'
+    Condition: UseAllocateEIP
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 45c47595-91e5-4c9c-91a8-a5a379868ff4
+  EIPAssociation02:
+    Type: 'AWS::EC2::EIPAssociation'
+    Condition: UseAllocateEIP
+    Properties:
+      AllocationId: !GetAtt 
+        - EIP02
+        - AllocationId
+      InstanceId: !Ref WebServer
+    DependsOn:
+      - EIP02
+      - WebServer
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 90f3c4d3-7b32-4094-97a4-546ea806ad47
+Outputs:
+  WebServer:
+    Description: A reference to the web server
+    Value: !Ref WebServer
+  DatabaseServer:
+    Description: A reference to the database server
+    Value: !Ref DatabaseServer
+  BackupS3Bucket:
+    Description: S3 Bucket used to backup data
+    Value: !Sub |
+      https://${BackupS3Bucket.DomainName}
+Metadata:
+  'AWS::CloudFormation::Designer':
+    b821f2b5-e0a0-4b9f-9dbb-3ea999fc851c:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 300
+      z: 1
+      embeds: []
+    19c696d9-34a8-4278-87ec-5595154d6447:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 300
+      z: 1
+      embeds: []
+    7924aaa3-639f-4190-ab52-bd56ac19c29b:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 300
+      z: 1
+      embeds: []
+    a5ea54a4-250b-46af-a03c-7a983168a943:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 180
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 19c696d9-34a8-4278-87ec-5595154d6447
+    cba89d25-4a23-4e98-8833-b496f2358c5a:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 390
+      z: 1
+      embeds: []
+    821664c7-e81f-4054-864c-71ab58852999:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 390
+      z: 1
+      embeds: []
+    03ff17fa-b861-4c22-8830-d9f74cec5adc:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 510
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - cba89d25-4a23-4e98-8833-b496f2358c5a
+    0bfddc65-e654-4885-9d8a-bd2d9a82841c:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1180
+        'y': -150
+      z: 1
+      embeds: []
+    85ad8731-77bb-476d-8ca0-9ff13ef0e255:
+      size:
+        width: 150
+        height: 150
+      position:
+        x: 480
+        'y': 120
+      z: 1
+      embeds: []
+    bef7ac7f-041c-4a22-a310-4b87bea98a7f:
+      size:
+        width: 150
+        height: 150
+      position:
+        x: 300
+        'y': 120
+      z: 1
+      embeds: []
+    ac79ecfa-23f8-4b03-b114-b3f36d6eedf4:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1150
+        'y': 160
+      z: 1
+      embeds: []
+    aa3c4055-64d5-4277-bf03-70b5aa3c05e5:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1150
+        'y': 70
+      z: 1
+      embeds: []
+    9eac20a8-5d4c-4cea-9e9e-706f1d350e70:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1150
+        'y': 260
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - ac79ecfa-23f8-4b03-b114-b3f36d6eedf4
+    d38f518d-54d0-43ca-b926-a865f57bf938:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 120
+      z: 1
+      embeds: []
+    eb516d84-80f1-44a8-9924-342ed19d01d6:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 30
+      z: 1
+      embeds: []
+    af0d90fa-4478-4fdb-8de4-42c542933740:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 850
+        'y': 120
+      z: 1
+      embeds: []
+    c46e9d28-e9bc-4640-91d8-4450f395084e:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 950
+        'y': 30
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - af0d90fa-4478-4fdb-8de4-42c542933740
+    46293c04-ae2a-48cd-992c-bc8edf07486d:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 900
+        'y': -60
+      z: 1
+      embeds: []
+    3dfc089a-eca9-424d-89c8-df507b40ae9c:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1030
+        'y': -70
+      z: 1
+      embeds: []
+    1780f271-21df-41d0-8ec3-97c4b6fcefd6:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1460
+        'y': 150
+      z: 1
+      embeds: []
+    d2ced057-1e70-48ec-a0d7-a4d783188beb:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1320
+        'y': 50
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 1780f271-21df-41d0-8ec3-97c4b6fcefd6
+    c0e87aed-f6fe-40ea-8fa7-fb70ebb84b36:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1260
+        'y': -50
+      z: 1
+      embeds: []
+    206ea9bb-ac72-4f42-9275-8bb16e646057:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1380
+        'y': -50
+      z: 1
+      embeds: []
+    45c47595-91e5-4c9c-91a8-a5a379868ff4:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1460
+        'y': 60
+      z: 1
+      embeds: []
+    0e95ba48-30cc-4aa7-ac0d-e4490add9806:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 840
+        'y': 30
+      z: 1
+      embeds: []
+    f1e3df2e-594f-40b9-9f28-9b66581222b0:
+      source:
+        id: 0e95ba48-30cc-4aa7-ac0d-e4490add9806
+      target:
+        id: c46e9d28-e9bc-4640-91d8-4450f395084e
+      z: 1
+    90f3c4d3-7b32-4094-97a4-546ea806ad47:
+      source:
+        id: 45c47595-91e5-4c9c-91a8-a5a379868ff4
+      target:
+        id: d2ced057-1e70-48ec-a0d7-a4d783188beb
+      z: 1

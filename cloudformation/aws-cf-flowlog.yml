@@ -1,0 +1,273 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: vpc flowlog template
+Parameters:
+  VPCID:
+    Type: String
+    Default: vpc-0ed39a439c6c614c7
+    Description: where do you want to connect ?
+  VpcFlowLogDestination:
+    Type: String
+    Default: CloudWatchLogs
+    Description: Where do you want to ship your VPC Flow Logs (None/CloudWatchLogs/S3) ?
+Conditions:
+  VpcFlowLogsDestinationCloudWatchLogs: !Equals 
+    - !Ref VpcFlowLogDestination
+    - CloudWatchLogs
+  VpcFlowLogsDestinationS3: !Equals 
+    - !Ref VpcFlowLogDestination
+    - S3
+Resources:
+  VpcFlowLogsCwLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Condition: VpcFlowLogsDestinationCloudWatchLogs
+    Properties:
+      LogGroupName: !Sub '${AWS::StackName}/vpc-flow-logs-group'
+      RetentionInDays: 30
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 177932cc-ed88-4d8a-a2a8-b809191929eb
+  VpcFlowLogsCloudwatchPolicy:
+    Condition: VpcFlowLogsDestinationCloudWatchLogs
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: VpcFlowLogsCloudwatchPolicy
+      Roles:
+        - !Ref VpcFlowLogsCloudwatchRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+              - 'logs:DescribeLogGroups'
+              - 'logs:DescribeLogStreams'
+            Effect: Allow
+            Resource: !GetAtt 
+              - VpcFlowLogsCwLogGroup
+              - Arn
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 8eb97697-ffff-40dd-8e9e-fd1807b742aa
+  VpcFlowLogsCloudwatchRole:
+    Type: 'AWS::IAM::Role'
+    Condition: VpcFlowLogsDestinationCloudWatchLogs
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-vpcflowlogs-cw-role'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - vpc-flow-logs.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: a33039d2-952c-4c61-9b26-5f598c2ff889
+  VpcFlowLogsCloudWatchLogs:
+    Type: 'AWS::EC2::FlowLog'
+    Condition: VpcFlowLogsDestinationCloudWatchLogs
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt 
+        - VpcFlowLogsCloudwatchRole
+        - Arn
+      LogDestination: !GetAtt 
+        - VpcFlowLogsCwLogGroup
+        - Arn
+      LogDestinationType: cloud-watch-logs
+      MaxAggregationInterval: 60
+      ResourceId: !Ref VPCID
+      ResourceType: VPC
+      TrafficType: ALL
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}/vpc-flow-logs'
+        - Key: Stack
+          Value: !Sub '${AWS::StackId}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: e07130fc-136e-45f8-b17b-c6535068ff9a
+  VpcFlowLogKmsKey:
+    Type: 'AWS::KMS::Key'
+    Condition: VpcFlowLogsDestinationS3
+    Properties:
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+          - Sid: Key Management
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow VPC Flow Logs to use the key
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action:
+              - 'kms:ReEncrypt'
+              - 'kms:GenerateDataKey'
+              - 'kms:Encrypt'
+              - 'kms:DescribeKey'
+              - 'kms:Decrypt'
+            Resource: '*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c68b283b-7078-433a-b29a-d16ed18232b9
+  VpcFlowLogsBucket:
+    Type: 'AWS::S3::Bucket'
+    Condition: VpcFlowLogsDestinationS3
+    DeletionPolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyID: !GetAtt 
+                - VpcFlowLogKmsKey
+                - Arn
+      BucketName: !Sub '${AWS::StackName}-vpc-flowlogs'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b7a8680d-e496-4945-a4d2-b5e352e691b5
+  LogBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Condition: VpcFlowLogsDestinationS3
+    Properties:
+      Bucket: !Ref VpcFlowLogsBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AWSLogDeliveryWrite
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: 's3:PutObject'
+            Resource: !Sub '${VpcFlowLogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*'
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': bucket-owner-full-control
+          - Sid: AWSLogDeliveryAclCheck
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action: 's3:GetBucketAcl'
+            Resource: !GetAtt 
+              - VpcFlowLogsBucket
+              - Arn
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: ce229f4b-5cdf-4bd3-89fd-5ee71ac03cd0
+  VpcFlowLogsS3:
+    Type: 'AWS::EC2::FlowLog'
+    Condition: VpcFlowLogsDestinationS3
+    Properties:
+      LogDestinationType: s3
+      LogDestination: !GetAtt 
+        - VpcFlowLogsBucket
+        - Arn
+      MaxAggregationInterval: 60
+      ResourceId: !Ref VPCID
+      ResourceType: VPC
+      TrafficType: ALL
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}/vpc-flow-logs'
+        - Key: Stack
+          Value: !Sub '${AWS::StackId}'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 21b2d18b-1958-4cdd-b422-3c1a8a0c43b8
+Outputs:
+  VpcFlowLogsBucket:
+    Value: !Ref VpcFlowLogsBucket
+    Condition: VpcFlowLogsDestinationS3
+  VpcFlowLogsCwLogGroup:
+    Value: !Ref VpcFlowLogsCwLogGroup
+    Condition: VpcFlowLogsDestinationCloudWatchLogs
+Metadata:
+  'AWS::CloudFormation::Designer':
+    c68b283b-7078-433a-b29a-d16ed18232b9:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -450
+        'y': 350
+      z: 1
+      embeds: []
+    b7a8680d-e496-4945-a4d2-b5e352e691b5:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -330
+        'y': 350
+      z: 1
+      embeds: []
+    ce229f4b-5cdf-4bd3-89fd-5ee71ac03cd0:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -330
+        'y': 450
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - b7a8680d-e496-4945-a4d2-b5e352e691b5
+    a33039d2-952c-4c61-9b26-5f598c2ff889:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 210
+      z: 1
+      embeds: []
+    177932cc-ed88-4d8a-a2a8-b809191929eb:
+      size:
+        width: 150
+        height: 150
+      position:
+        x: -130
+        'y': 370
+      z: 1
+      embeds: []
+    8eb97697-ffff-40dd-8e9e-fd1807b742aa:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 170
+        'y': 250
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - a33039d2-952c-4c61-9b26-5f598c2ff889
+    21b2d18b-1958-4cdd-b422-3c1a8a0c43b8:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -330
+        'y': 220
+      z: 1
+      embeds: []
+    e07130fc-136e-45f8-b17b-c6535068ff9a:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: -80
+        'y': 210
+      z: 1
+      embeds: []

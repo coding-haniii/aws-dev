@@ -1,0 +1,437 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: EC2 CloudFormation Template
+Parameters:
+  InsertProjectName:
+    Description: Server Environment name.
+    ConstraintDescription: Choose an Environment from the drop down
+    Type: String
+  InsertVpcId:
+    Description: VpcId.
+    ConstraintDescription: Insert target vup
+    Type: String
+  EC2Name01:
+    Description: Name tag for EC2
+    Type: String
+  EC2Name02:
+    Description: Name tag for EC2
+    Type: String  
+  EC2Name03:
+    Description: Name tag for EC2
+    Type: String
+  EC2Name04:
+    Description: Name tag for EC2
+    Type: String     
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair    
+  EC2InstanceType:
+    Description: Specify EC2 instance type
+    Type: String
+  InsertSubnetId01:
+    Description: SubnetId.
+    ConstraintDescription: Insert target subnet
+    Type: String
+  InsertSubnetId02:
+    Description: SubnetId.
+    ConstraintDescription: Insert target subnet
+    Type: String
+  InsertSubnetId03:
+    Description: SubnetId.
+    ConstraintDescription: Insert target subnet
+    Type: String
+  InsertSubnetId04:
+    Description: SubnetId.
+    ConstraintDescription: Insert target subnet
+    Type: String
+  AMIId01:
+    Description: Specify AMI Id
+    Type: 'AWS::EC2::Image::Id' 
+  AMIId02:
+    Description: Specify AMI Id
+    Type: 'AWS::EC2::Image::Id'
+  AMIId03:
+    Description: Specify AMI Id
+    Type: 'AWS::EC2::Image::Id'
+  AMIId04:
+    Description: Specify AMI Id
+    Type: 'AWS::EC2::Image::Id'
+  AllocateEIP:
+    Description: Select "yes" if you want to assign EIP to an instance
+    Type: String
+    AllowedValues:
+      - 'yes'
+      - 'no'
+Conditions:
+  UseAllocateEIP: !Equals 
+    - !Ref AllocateEIP
+    - 'yes'
+Resources:
+  ############################ Instance Resources Set 01 ####################
+  IAMRole01:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 41e1ca89-61d2-4172-acb1-4d17db56a411
+  InstanceProfile01:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref IAMRole01
+    DependsOn: IAMRole01
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 334df998-2e8f-4d7d-8b2d-a094c4c84faf
+  InstanceSecurityGroup01:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Join 
+        - '-'
+        - - !Ref EC2Name01
+          - sg-01
+      GroupDescription: !Join 
+        - ' '
+        - - !Ref EC2Name01
+          - Instance01
+          - Security Group
+      VpcId: !Ref InsertVpcId
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref EC2Name01
+              - InstanceSecurityGroup01
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 635bf8e8-463d-498b-b51e-b5d6abe351cb
+  Instance01:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !Ref AMIId01
+      InstanceType: !Ref EC2InstanceType
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile01
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup01
+      SubnetId: !Ref InsertSubnetId01
+      Tags:
+        - Key: Name
+          Value: !Ref EC2Name01
+    DependsOn:
+      - InstanceSecurityGroup01
+      - InstanceProfile01
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 050bfe64-5f7a-42df-b594-80abb1d4070a
+  EIP01:
+    Type: 'AWS::EC2::EIP'
+    Condition: UseAllocateEIP
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 541ceb8b-fed0-445e-9c55-ee20f8c742c9
+  EIPAssociation01:
+    Type: 'AWS::EC2::EIPAssociation'
+    Condition: UseAllocateEIP
+    Properties:
+      AllocationId: !GetAtt 
+        - EIP01
+        - AllocationId
+      InstanceId: !Ref Instance01
+    DependsOn:
+      - EIP01
+      - Instance01
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: df6b2c83-7f7f-4db9-9b6e-220969f824b8
+  ############################ Instance Resources Set 02 ####################        
+  IAMRole02:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 41e1ca89-61d2-4172-acb1-4d17db56a411
+  InstanceProfile02:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref IAMRole02
+    DependsOn: IAMRole02
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 334df998-2e8f-4d7d-8b2d-a094c4c84faf
+  InstanceSecurityGroup02:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Join 
+        - '-'
+        - - !Ref EC2Name02
+          - sg-02
+      GroupDescription: !Join 
+        - ' '
+        - - !Ref EC2Name02
+          - Instance02
+          - Security Group
+      VpcId: !Ref InsertVpcId
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref EC2Name02
+              - InstanceSecurityGroup02
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 635bf8e8-463d-498b-b51e-b5d6abe351cb
+  Instance02:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !Ref AMIId02
+      InstanceType: !Ref EC2InstanceType
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile02
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup02
+      SubnetId: !Ref InsertSubnetId02
+      Tags:
+        - Key: Name
+          Value: !Ref EC2Name02
+    DependsOn:
+      - InstanceSecurityGroup02
+      - InstanceProfile02
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 050bfe64-5f7a-42df-b594-80abb1d4070a
+  EIP02:
+    Type: 'AWS::EC2::EIP'
+    Condition: UseAllocateEIP
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 541ceb8b-fed0-445e-9c55-ee20f8c742c9
+  EIPAssociation02:
+    Type: 'AWS::EC2::EIPAssociation'
+    Condition: UseAllocateEIP
+    Properties:
+      AllocationId: !GetAtt 
+        - EIP02
+        - AllocationId
+      InstanceId: !Ref Instance02
+    DependsOn:
+      - EIP02
+      - Instance02
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: df6b2c83-7f7f-4db9-9b6e-220969f824b8
+  ############################ Instance Resources Set 03 ####################        
+  IAMRole03:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 41e1ca89-61d2-4172-acb1-4d17db56a411
+  InstanceProfile03:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref IAMRole03
+    DependsOn: IAMRole03
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 334df998-2e8f-4d7d-8b2d-a094c4c84faf
+  InstanceSecurityGroup03:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Join 
+        - '-'
+        - - !Ref EC2Name03
+          - sg-03
+      GroupDescription: !Join 
+        - ' '
+        - - !Ref EC2Name03
+          - Instance03
+          - Security Group
+      VpcId: !Ref InsertVpcId
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref EC2Name03
+              - InstanceSecurityGroup03
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 635bf8e8-463d-498b-b51e-b5d6abe351cb
+  Instance03:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !Ref AMIId03
+      InstanceType: !Ref EC2InstanceType
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile03
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup03
+      SubnetId: !Ref InsertSubnetId03
+      Tags:
+        - Key: Name
+          Value: !Ref EC2Name03
+    DependsOn:
+      - InstanceSecurityGroup03
+      - InstanceProfile03
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 050bfe64-5f7a-42df-b594-80abb1d4070a
+  EIP03:
+    Type: 'AWS::EC2::EIP'
+    Condition: UseAllocateEIP
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 541ceb8b-fed0-445e-9c55-ee20f8c742c9
+  EIPAssociation03:
+    Type: 'AWS::EC2::EIPAssociation'
+    Condition: UseAllocateEIP
+    Properties:
+      AllocationId: !GetAtt 
+        - EIP03
+        - AllocationId
+      InstanceId: !Ref Instance03
+    DependsOn:
+      - EIP03
+      - Instance03
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: df6b2c83-7f7f-4db9-9b6e-220969f824b8
+  ############################ Instance Resources Set 04 ####################
+  IAMRole04:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 41e1ca89-61d2-4172-acb1-4d17db56a411
+  InstanceProfile04:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref IAMRole04
+    DependsOn: IAMRole04
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 334df998-2e8f-4d7d-8b2d-a094c4c84faf
+  InstanceSecurityGroup04:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Join 
+        - '-'
+        - - !Ref EC2Name04
+          - sg-04
+      GroupDescription: !Join 
+        - ' '
+        - - !Ref EC2Name04
+          - Instance04
+          - Security Group
+      VpcId: !Ref InsertVpcId
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref EC2Name04
+              - InstanceSecurityGroup04
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 635bf8e8-463d-498b-b51e-b5d6abe351cb
+  Instance04:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !Ref AMIId04
+      InstanceType: !Ref EC2InstanceType
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: stop
+      IamInstanceProfile: !Ref InstanceProfile04
+      Monitoring: false
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup04
+      SubnetId: !Ref InsertSubnetId04
+      Tags:
+        - Key: Name
+          Value: !Ref EC2Name04
+    DependsOn:
+      - InstanceSecurityGroup04
+      - InstanceProfile04
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 050bfe64-5f7a-42df-b594-80abb1d4070a
+  EIP04:
+    Type: 'AWS::EC2::EIP'
+    Condition: UseAllocateEIP
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 541ceb8b-fed0-445e-9c55-ee20f8c742c9
+  EIPAssociation04:
+    Type: 'AWS::EC2::EIPAssociation'
+    Condition: UseAllocateEIP
+    Properties:
+      AllocationId: !GetAtt 
+        - EIP04
+        - AllocationId
+      InstanceId: !Ref Instance04
+    DependsOn:
+      - EIP04
+      - Instance04
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: df6b2c83-7f7f-4db9-9b6e-220969f824b8
