@@ -46,6 +46,6 @@ $terraform destroy   (Remove created resources)
 -------------------------------------------------------
 ### Ref.
  - https://cloudbim.tistory.com/14
- - https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html (AWS Manual)
- - https://gain-yoo.github.io/devops/20/ (Korean)
+ - https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html (Access key, Eng AWS Manual)
+ - https://gain-yoo.github.io/devops/20/ (Access key, Korean)
  - https://notepad96.tistory.com/209  (Setting IDE: VSCODE, Window)  
