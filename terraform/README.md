@@ -5,7 +5,7 @@
  - @keywords.  DevOps / AWS / terraform 
 
 ---------------------------------------------------------------------------
-# Welcome! Follow this steps.
+# Welcome! Follow these steps.
 ### Initi Env. in Linux(AWS)
 ```
 * AWS Cli install
@@ -15,18 +15,18 @@ $sudo ./aws/install
 $aws --version
 ```
 -------------------------------------------------------
-### Terraform intall
+### Terraform install
 ```
 $sudo yum install -y yum-utils shadow-utils
 $sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
 $sudo yum -y install terraform
-$sudo mv /usr/bin/terraform /usr/local/bin/  (set terrafom on system command)
+$sudo mv /usr/bin/terraform /usr/local/bin/  (set terraform on system command)
 $terraform -version
 ```
 -------------------------------------------------------
-### AWS Configure with AWS accesskey
+### AWS Configure with AWS access key
 ```
-$aws configure                   (*To do this step, You shuld create your accesskey on your AWS console)
+$aws configure                   (*To do this step, You should create your accesskey on your AWS console)
 AWS Access Key ID [None]: 
 AWS Secret Access Key [None]: 
 Default region name [None]: 
@@ -48,3 +48,4 @@ $terraform destroy   (Remove created resources)
  - https://cloudbim.tistory.com/14
  - https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html (AWS Manual)
  - https://gain-yoo.github.io/devops/20/ (Korean)
+ - https://notepad96.tistory.com/209  (Setting IDE: VSCODE, Window)  
