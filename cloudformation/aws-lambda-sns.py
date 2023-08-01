@@ -20,7 +20,10 @@ def post_slack(argStr):
 def lambda_handler(event, context):
     post_slack("This alarm generated from AWS Lambda to Slack.")
 
-# add APP "Incoming WebHooks" on your slack
+# Welcome! Follow these steps.  github@coding-haniii
+# 1. add APP <Incoming WebHooks> on your slack
+# 2. create <IAM> in your AWS console "Role:AWSLambdaBasicExecutionRole"
+# 3. create <Lambda> function in your AWS console "Python 3.7"
 # smaple test : same curl transaction
 # curl -X POST --data-urlencode "payload={\"channel\": \"#awsAlarm\", \"username\": \"coding-haniii\", \"text\": \"real alarm msg send to slack channel.\", \"icon_emoji\": \":ghost:\"}" https://hooks.slack.com/services/{CUMSTEMED YOUR LINK}
 # icon_emoji : You can change icon in your slack setting
