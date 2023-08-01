@@ -1,4 +1,4 @@
-# aws-dev
+# devops-templates
  - @author. haeun kim
  - @date.   2023-08-01
  - @title.  Templates to create Cloud Architect & Resources  
