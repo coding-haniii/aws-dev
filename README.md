@@ -16,4 +16,6 @@
 
 # My Reference! 
 
-![캡처](/AWS_STUDY_20230401.png)
+<p align="center">
+  <img src="/AWS_STUDY_20230401.png">
+</p>
