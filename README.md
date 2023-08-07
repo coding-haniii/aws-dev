@@ -4,6 +4,10 @@
  - @title.  Templates to create Cloud Architect & Resources  
  - @keywords.  DevOps / cloudformation(AWS) / terraform / docker / kubernetes(k8s)
 
+# My Reference! 
+
+![캡처](/AWS_STUDY_v01_20230401.png)
+
 # Welcome! 
 
 > Welcome, Cloud CI/CD DevOps with coding-haniii 
@@ -14,8 +18,3 @@
 > Please, contact me without hesitation. 
 > I will be glad to meet you and I would invite your GitHub again just for the screen before uploading this reference list.  
 
-# My Reference! 
-
-<p align="center">
-  <img src="/AWS_STUDY_v01_20230401.png" width="800" height="500">
-</p>
