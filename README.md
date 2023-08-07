@@ -17,5 +17,5 @@
 # My Reference! 
 
 <p align="center">
-  <img src="/AWS_STUDY_20230401.png">
+  <img src="/AWS_STUDY_20230401.png" width="200" height="400">
 </p>
