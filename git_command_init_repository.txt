@@ -1,0 +1,44 @@
+### Welcome !
+### Follow me :) @auther. haeun kim
+
+=====================================================================
+Init Git Repository in local (Linux:AWS)
+=====================================================================
+[ec2-user@]$ git remote add origin https://github.com/coding-haniii/aws_git_cicd.git
+[ec2-user@]$ git remote -v
+origin  https://github.com/coding-haniii/aws_git_cicd.git (fetch)
+origin  https://github.com/coding-haniii/aws_git_cicd.git (push)
+[ec2-user@]$ git fetch
+remote: Enumerating objects: 3, done.
+remote: Counting objects: 100% (3/3), done.
+remote: Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
+Unpacking objects: 100% (3/3), 629 bytes | 629.00 KiB/s, done.
+From https://github.com/coding-haniii/aws_git_cicd
+ * [new branch]      main       -> origin/main
+[ec2-user@]$ git pull
+remote: Enumerating objects: 5, done.
+remote: Counting objects: 100% (5/5), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
+Unpacking objects: 100% (3/3), 675 bytes | 675.00 KiB/s, done.
+From https://github.com/coding-haniii/aws_git_cicd
+   882fb74..888c671  main       -> origin/main
+Updating 882fb74..888c671
+Fast-forward
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+[ec2-user@]$ ll
+total 4
+-rw-r--r--. 1 ec2-user ec2-user 53 Jul  6 08:53 README.md
+
+
+=====================================================================
+MAKE BRANCH (dev)  ref.dev : I will upload(push) my files to dev directory first > main(final version)
+=====================================================================
+[ec2-user@]$ git branch dev
+[ec2-user@]$ git checkout dev
+Switched to branch 'dev'
+[ec2-user@]$ git branch
+* dev
+  main
+
